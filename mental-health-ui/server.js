@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv'; // 1. Added dotenv for Cloud Variables
-import { db } from './db.js'; 
-import { getAIResponse } from './services/aiService.js';
+import { db } from '../db.js'; 
+import { getAIResponse } from '../services/aiService.js';
 
 dotenv.config(); // Load .env file
 

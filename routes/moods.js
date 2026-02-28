@@ -1,59 +1,109 @@
 import express from "express";
-import { db } from "../db.js";
 import { getAIResponse } from "../services/aiService.js";
+import pool from "../db.js";
 
 const router = express.Router();
 
-// --- POST: Create Mood (With Extra Credit: Input Validation) ---
-router.post("/", async (req, res) => {
-  const { user_id, mood_text } = req.body;
+/*
+   BASE PATH = /api/moods
+   So:
+   GET    /api/moods
+   POST   /api/moods
+*/
 
-  // EXTRA CREDIT: Reject if mood_text is missing or just spaces
-  if (!mood_text || mood_text.trim() === "") {
-    return res.status(400).json({ error: "Mood text cannot be empty!" });
-  }
-
-  try {
-    const [result] = await db.query(
-      "INSERT INTO mood_entries (user_id, mood_text) VALUES (?, ?)",
-      [user_id, mood_text]
-    );
-
-    const aiMessage = await getAIResponse(mood_text);
-
-    await db.query(
-      "INSERT INTO ai_responses (mood_entry_id, ai_message) VALUES (?, ?)",
-      [result.insertId, aiMessage]
-    );
-
-    res.json({ message: "Mood saved", aiMessage });
-  } catch (err) {
-    res.status(500).json({ error: "Database error" });
-  }
-});
-
-// --- GET: Read All Moods ---
+// ===============================
+// 1️⃣ GET ALL MOOD HISTORY
+// ===============================
 router.get("/", async (req, res) => {
-  const [rows] = await db.query(`
-    SELECT u.full_name, m.id, m.mood_text, a.ai_message
-    FROM users u
-    JOIN mood_entries m ON u.id = m.user_id
-    JOIN ai_responses a ON m.id = a.mood_entry_id
-  `);
-  res.json(rows);
+  try {
+    const query = `
+      SELECT 
+        u.full_name, 
+        m.mood_text, 
+        a.ai_message,
+        m.created_at
+      FROM users u
+      JOIN mood_entries m ON u.id = m.user_id
+      JOIN ai_responses a ON m.id = a.mood_entry_id
+      ORDER BY m.created_at DESC
+    `;
+
+    const [rows] = await pool.query(query);
+    res.json(rows);
+
+  } catch (error) {
+    console.error("GET ERROR:", error);
+    res.status(500).json({ message: "Error fetching mood history" });
+  }
 });
 
-// --- EXTRA CREDIT: DELETE Route ---
-router.delete("/:id", async (req, res) => {
-  const { id } = req.params;
+
+// ===============================
+// 2️⃣ CREATE NEW MOOD ENTRY
+// ===============================
+router.post("/", async (req, res) => {
+  const connection = await pool.getConnection();
+
   try {
-    // We delete from ai_responses first due to Foreign Key constraints
-    await db.query("DELETE FROM ai_responses WHERE mood_entry_id = ?", [id]);
-    await db.query("DELETE FROM mood_entries WHERE id = ?", [id]);
-    
-    res.json({ message: `Entry ID ${id} successfully deleted from XAMPP.` });
-  } catch (err) {
-    res.status(500).json({ error: "Delete failed" });
+    const { full_name, mood_text } = req.body;
+
+    // Basic validation
+    if (!full_name || !mood_text) {
+      return res.status(400).json({
+        success: false,
+        message: "full_name and mood_text are required"
+      });
+    }
+
+    // Get AI response
+    const ai_message = await getAIResponse(full_name, mood_text);
+
+    await connection.beginTransaction();
+
+    // Step 1: Insert or get user
+    const [user] = await connection.query(
+      `INSERT INTO users (full_name)
+       VALUES (?)
+       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+      [full_name]
+    );
+
+    const userId = user.insertId;
+
+    // Step 2: Insert mood entry
+    const [mood] = await connection.query(
+      `INSERT INTO mood_entries (user_id, mood_text)
+       VALUES (?, ?)`,
+      [userId, mood_text]
+    );
+
+    const moodEntryId = mood.insertId;
+
+    // Step 3: Insert AI response
+    await connection.query(
+      `INSERT INTO ai_responses (mood_entry_id, ai_message)
+       VALUES (?, ?)`,
+      [moodEntryId, ai_message]
+    );
+
+    await connection.commit();
+
+    res.json({
+      success: true,
+      ai_message
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error("POST ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Transaction failed"
+    });
+
+  } finally {
+    connection.release();
   }
 });
 

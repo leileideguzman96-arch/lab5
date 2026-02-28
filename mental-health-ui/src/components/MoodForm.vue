@@ -1,33 +1,62 @@
 <template>
-  <div class="mood-container">
-    <h2>Mood Check-in</h2>
-    
-    <div v-if="errorMessage" class="error-banner">
-      ⚠️ {{ errorMessage }}
+  <div class="container">
+    <h1>Mood Check-in</h1>
+
+    <!-- Input Section -->
+    <div class="card form-card">
+      <input
+        v-model="name"
+        placeholder="Your name"
+        :disabled="loading"
+        class="input-field"
+      />
+      <textarea
+        v-model="mood"
+        placeholder="How are you feeling today?"
+        :disabled="loading"
+        class="input-field"
+      ></textarea>
+      <div class="btn-group">
+        <button
+          @click="submitMood"
+          :disabled="loading || !name || !mood"
+          class="btn submit-btn"
+        >
+          <span v-if="loading">Procsssing...</span>
+          <span v-else>Submit</span>
+        </button>
+      </div>
+
+      <!-- Error/AI Response Section -->
+      <p v-if="error" class="error-msg">{{ error }}</p>
+      <div v-if="aiMessage" class="ai-box">
+        <strong>AI Advisor:</strong> {{ aiMessage }}
+      </div>
     </div>
 
-    <input v-model="name" placeholder="Your name" class="input-field" />
-    <textarea v-model="mood" placeholder="How are you feeling? (Any language)" class="text-area"></textarea>
-    
-    <button @click="submitMood" :disabled="loading" class="submit-btn">
-      <span v-if="loading" class="spinner"></span>
-      {{ loading ? ' Consulting AI...' : 'Submit Mood' }}
-    </button>
-    
-    <div v-if="aiMessage" class="ai-response">
-      <strong>AI Advisor:</strong> {{ aiMessage }}
-    </div>
-
-    <hr v-if="history.length > 0" />
-
-    <div v-if="history.length > 0" class="history-section">
-      <h3>Recent History</h3>
-      <ul>
-        <li v-for="item in history" :key="item.id" class="history-item">
-          <strong>{{ item.full_name }}:</strong> {{ item.mood_text }}
-          <p class="history-ai">✨ {{ item.ai_message }}</p>
-        </li>
-      </ul>
+    <!-- Mood History List -->
+    <div class="card history-card">
+      <div class="history-header">
+        <h3>Mood History</h3>
+        <button @click="fetchHistory" class="btn refresh-btn">Refresh</button>
+      </div>
+      <table v-if="history.length > 0" class="history-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Mood</th>
+            <th>AI Response</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="entry in history" :key="entry.id">
+            <td>{{ entry.full_name }}</td>
+            <td>{{ entry.mood_text }}</td>
+            <td>{{ entry.ai_message }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else>No history found.</p>
     </div>
   </div>
 </template>
@@ -37,55 +66,43 @@ import api from '../services/api';
 
 export default {
   data() {
-    return { 
-      name: '', 
-      mood: '', 
+    return {
+      name: '',
+      mood: '',
       aiMessage: '',
-      errorMessage: '', 
-      loading: false, 
-      history: [] 
+      loading: false,
+      error: null,
+      history: []
     };
   },
   mounted() {
-    this.fetchHistory(); 
+    this.fetchHistory();
   },
   methods: {
-    async fetchHistory() {
-      try {
-        // Calls the GET route in server.js
-        const res = await api.get('/api/moods');
-        this.history = res.data;
-      } catch (err) {
-        console.error("History fetch failed");
-      }
-    },
     async submitMood() {
-      if (!this.name || !this.mood) {
-        this.errorMessage = "Please enter both your name and mood.";
-        return;
-      }
-      
       this.loading = true;
-      this.errorMessage = '';
-      this.aiMessage = '';
-
+      this.error = null;
       try {
         const res = await api.post('/api/moods', {
           full_name: this.name,
           mood_text: this.mood
         });
-        
-        // If the backend returns { ai_message: "..." }
-        this.aiMessage = res.data.ai_message;
-        
-        // Refresh history to show the new entry immediately
-        await this.fetchHistory(); 
-        this.mood = ''; 
-      } catch (error) {
-        // Specific error message for the Error UI Extra Credit
-        this.errorMessage = "Could not connect to the AI. Is the server running?";
+
+        this.aiMessage = res.data.ai_message || res.data.aiMessage;
+        this.mood = '';
+        this.fetchHistory();
+      } catch (err) {
+        this.error = "Failed to connect to server. Is the backend running?";
       } finally {
         this.loading = false;
+      }
+    },
+    async fetchHistory() {
+      try {
+        const res = await api.get('/api/moods');
+        this.history = res.data;
+      } catch (err) {
+        console.error("Could not fetch history");
       }
     }
   }
@@ -93,17 +110,118 @@ export default {
 </script>
 
 <style scoped>
-.mood-container { max-width: 450px; margin: 20px auto; display: flex; flex-direction: column; gap: 15px; font-family: sans-serif; }
-.input-field, .text-area { padding: 12px; border: 1px solid #ddd; border-radius: 8px; }
-.submit-btn { background: #42b983; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-.submit-btn:disabled { background: #a8d5c2; cursor: not-allowed; }
+.container {
+  max-width: 700px;
+  margin: 30px auto;
+  font-family: 'Segoe UI', sans-serif;
+  color: #000;
+  background: #fff;
+}
 
-.error-banner { background: #ffebee; color: #c62828; padding: 10px; border-radius: 8px; border: 1px solid #ef9a9a; }
+h1 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #000;
+}
 
-.spinner { border: 3px solid rgba(255,255,255,.3); border-radius: 50%; border-top: 3px solid #fff; width: 16px; height: 16px; animation: spin 1s linear infinite; margin-right: 10px; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
 
-.ai-response { background: #f0fdf4; padding: 15px; border-left: 5px solid #42b983; border-radius: 4px; }
-.history-item { list-style: none; background: #fff; border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 8px; }
-.history-ai { font-style: italic; color: #666; font-size: 0.9em; margin-top: 5px; }
+.input-field {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #aaa;
+  margin-bottom: 12px;
+  font-size: 14px;
+  background: #fff;
+  color: #000;
+  resize: none;
+}
+
+textarea.input-field {
+  min-height: 80px;
+}
+
+.btn-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 10px 15px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.submit-btn {
+  background-color: #000;
+  color: #fff;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background-color: #333;
+}
+
+.refresh-btn {
+  background: #000;
+  color: #fff;
+}
+
+.refresh-btn:hover {
+  background: #333;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-box {
+  background: #f2f2f2;
+  padding: 15px;
+  border-left: 5px solid #000;
+  margin-top: 12px;
+  border-radius: 6px;
+  color: #000;
+}
+
+.error-msg {
+  color: #b00020;
+  font-weight: bold;
+  margin-top: 5px;
+}
+
+.history-card .history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.history-table th,
+.history-table td {
+  border: 1px solid #aaa;
+  padding: 10px;
+  text-align: left;
+  color: #000;
+}
+
+.history-table th {
+  background-color: #e0e0e0;
+}
 </style>
