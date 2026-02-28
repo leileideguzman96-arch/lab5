@@ -1,23 +1,30 @@
 {
-  "name": "mental-health-ui",
+  "name": "mental-health-wellness-app",
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "homepage": "https://leileideguzman96-arch.github.io/lab5/",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "gh-pages -d dist",
+    "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
     "axios": "^1.13.5",
-    "vue": "^3.5.27"
+    "cors": "^2.8.6",
+    "vue": "^3.5.26",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.3",
-    "vite": "^7.3.1",
+    "gh-pages": "^6.3.0",
+    "prettier": "3.7.4",
+    "vite": "^7.3.0",
     "vite-plugin-vue-devtools": "^8.0.5"
-  },
-  "engines": {
-    "node": "^20.19.0 || >=22.12.0"
   }
 }
