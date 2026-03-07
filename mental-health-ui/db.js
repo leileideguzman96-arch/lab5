@@ -9,16 +9,17 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT,
+  port: process.env.DB_PORT || 3306, // Added default port just in case
 
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 
-  // 🔥 REQUIRED for most cloud MySQL providers
+  // REQUIRED for cloud MySQL (Aiven, PlanetScale, DigitalOcean, etc.)
   ssl: {
     rejectUnauthorized: false
   }
 });
 
+// This is a "Default Export"
 export default pool;
